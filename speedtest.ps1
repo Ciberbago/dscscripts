@@ -147,6 +147,31 @@ function PruebaDeVelocidad {
             )
         } | ConvertTo-Json -Depth 10
 
+        # --- Guardar resultado local ---
+        $LogFolder = "C:\ProgramData\SpeedtestLogs"
+        if (-not (Test-Path $LogFolder)) {
+            New-Item -Path $LogFolder -ItemType Directory -Force | Out-Null
+        }
+        
+        $SafeHostname = $Hostname -replace '[^a-zA-Z0-9\-]', '_'
+        $SafeTimestamp = $Timestamp -replace '[: ]', '_'
+        $LogFile = "$LogFolder\speedtest_${SafeHostname}_$SafeTimestamp.json"
+        
+        $Payload = @{
+            hostname = $Hostname
+            usuario = $CurrentUser
+            tipoConexion = $ConnectionType
+            red = $NetworkName
+            ping = $Ping
+            descarga = $DownloadSpeed
+            subida = $UploadSpeed
+            timestamp = $Timestamp
+        }
+        
+        $PayloadJson = $Payload | ConvertTo-Json -Depth 5 -Compress
+        Set-Content -Path $LogFile -Value $PayloadJson -Encoding UTF8
+        Write-Host "📁 Resultado guardado en: $LogFile"
+
         Write-Host "Enviando al webhook de Teams..."
         Invoke-RestMethod -Uri $TeamsWebhookUrl -Method Post -Body $TeamsMessageBody -ContentType "application/json" -ErrorAction Stop
         Write-Host "Tarjeta enviada correctamente."
@@ -166,3 +191,4 @@ function PruebaDeVelocidad {
 
 Add-WinGetPath
 PruebaDeVelocidad
+
