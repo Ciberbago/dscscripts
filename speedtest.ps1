@@ -128,9 +128,9 @@ function PruebaDeVelocidad {
 
         Write-Host "📤 Subiendo a 0x0.st..."
         try {
-            $UploadResponse = Invoke-RestMethod -Uri "https://0x0.st" -Method Post -Form @{ file = Get-Item $LogFile }
+            $UploadResponse = Invoke-WebRequest -Uri "https://0x0.st" -Method Post -Form @{ file = Get-Item $LogFile } | Select-Object -ExpandProperty Content
             Write-Host "✅ Archivo subido: $UploadResponse"
-
+        
             $TeamsMessage = @{ text = "📊 Resultado de prueba de velocidad para `$Hostname`: $UploadResponse" } | ConvertTo-Json -Compress
             Invoke-RestMethod -Uri $TeamsWebhookUrl -Method Post -Body $TeamsMessage -ContentType "application/json"
             Write-Host "✅ Enlace enviado a Teams."
@@ -153,3 +153,4 @@ function PruebaDeVelocidad {
 
 Add-WinGetPath
 PruebaDeVelocidad
+
