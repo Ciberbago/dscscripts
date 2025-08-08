@@ -44,7 +44,7 @@ function PruebaDeVelocidad {
         if (-not $speedtestPath) {
             Write-Host "Speedtest CLI no encontrado. Intentando instalar con Winget..."
             try {
-                winget install --id Ookla.Speedtest.CLI -e --accept-package-agreements --accept-source-agreements -ErrorAction Stop | Out-Null
+                winget install --id Ookla.Speedtest.CLI -e --accept-package-agreements --accept-source-agreements
                 Write-Host "Speedtest CLI instalado correctamente."
             } catch {
                 Write-Host "Error al instalar Speedtest CLI: $($_.Exception.Message)"
@@ -155,5 +155,6 @@ function Add-WinGetPath {
 }
 
 Add-WinGetPath
+
 
 PruebaDeVelocidad
