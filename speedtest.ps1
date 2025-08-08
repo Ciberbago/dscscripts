@@ -27,11 +27,7 @@ function Get-SpeedtestExecutable {
 function Add-WinGetPath {
     $WinGetPath = (Get-ChildItem -Path "$env:ProgramFiles\WindowsApps\Microsoft.DesktopAppInstaller*_x64*\winget.exe").DirectoryName
     If (-Not(($Env:Path -split ';') -contains $WinGetPath)) {
-        If ($env:path -match ";$") {
-            $env:path += $WinGetPath + ";"
-        } else {
-            $env:path += ";" + $WinGetPath + ";"
-        }
+        $env:path += if ($env:path -match ";$") { $WinGetPath + ";" } else { ";" + $WinGetPath + ";" }
         Write-Host "Winget path $WinGetPath added to environment variable"
     } else {
         Write-Host "Winget path already exists in registry."
@@ -49,21 +45,20 @@ function PruebaDeVelocidad {
 
         $Hostname = $env:COMPUTERNAME
         $CurrentUser = $env:USERNAME
+        if ($CurrentUser -eq "SYSTEM") {
+            Write-Warning "⚠️ El script se está ejecutando como SYSTEM. Esto puede causar rechazo en el webhook."
+        }
 
         $ConnectionType = "Desconocido"
-        $NetworkName = "N/A"
+        $NetworkName = @("N/A")
 
         try {
             $ConnectionProfile = Get-NetConnectionProfile -ErrorAction SilentlyContinue
             if ($ConnectionProfile) {
-                $NetworkName = $ConnectionProfile.Name
                 $NetAdapter = Get-NetAdapter -InterfaceIndex $ConnectionProfile.InterfaceIndex -ErrorAction SilentlyContinue
+                $NetworkName = @($ConnectionProfile.Name)
                 if ($NetAdapter) {
-                    if ($NetAdapter.MediaType -eq '802.11') {
-                        $ConnectionType = "Wi-Fi"
-                    } else {
-                        $ConnectionType = "Cable (Ethernet)"
-                    }
+                    $ConnectionType = if ($NetAdapter.MediaType -eq '802.11') { "Wi-Fi" } else { "Cable (Ethernet)" }
                 }
             } else {
                 $ConnectionType = "Sin conexión"
@@ -88,11 +83,7 @@ function PruebaDeVelocidad {
         $UploadSpeed = "N/A"
 
         $speedtestCmd = Get-Command speedtest.exe -ErrorAction SilentlyContinue
-        if ($speedtestCmd) {
-            $speedtestPath = $speedtestCmd.Source
-        } else {
-            $speedtestPath = Get-SpeedtestExecutable
-        }
+        $speedtestPath = if ($speedtestCmd) { $speedtestCmd.Source } else { Get-SpeedtestExecutable }
 
         if ($speedtestPath) {
             Write-Host "Ejecutando prueba de velocidad..."
@@ -123,14 +114,14 @@ function PruebaDeVelocidad {
                 @{
                     type = "FactSet"
                     facts = @(
-                        @{ title = "Fecha y Hora:"; value = "$($Timestamp)" },
-                        @{ title = "Equipo:"; value = "$($Hostname)" },
-                        @{ title = "Usuario:"; value = "$($CurrentUser)" },
-                        @{ title = "Tipo de Conexión:"; value = "$($ConnectionType)" },
-                        @{ title = "Red Wi-Fi (si aplica):"; value = "$($NetworkName)" },
-                        @{ title = "Ping:"; value = "$($Ping)" },
-                        @{ title = "Velocidad de Descarga:"; value = "$($DownloadSpeed)" },
-                        @{ title = "Velocidad de Subida:"; value = "$($UploadSpeed)" }
+                        @{ title = "Fecha y Hora:"; value = "$Timestamp" },
+                        @{ title = "Equipo:"; value = "$Hostname" },
+                        @{ title = "Usuario:"; value = "$CurrentUser" },
+                        @{ title = "Tipo de Conexión:"; value = "$ConnectionType" },
+                        @{ title = "Red Wi-Fi (si aplica):"; value = "$($NetworkName -join ', ')" },
+                        @{ title = "Ping:"; value = "$Ping" },
+                        @{ title = "Velocidad de Descarga:"; value = "$DownloadSpeed" },
+                        @{ title = "Velocidad de Subida:"; value = "$UploadSpeed" }
                     )
                 }
             )
@@ -145,18 +136,17 @@ function PruebaDeVelocidad {
                     content = $AdaptiveCardContent
                 }
             )
-        } | ConvertTo-Json -Depth 10
+        } | ConvertTo-Json -Depth 10 -Compress
 
-        # --- Guardar resultado local ---
         $LogFolder = "C:\ProgramData\SpeedtestLogs"
         if (-not (Test-Path $LogFolder)) {
             New-Item -Path $LogFolder -ItemType Directory -Force | Out-Null
         }
-        
+
         $SafeHostname = $Hostname -replace '[^a-zA-Z0-9\-]', '_'
         $SafeTimestamp = $Timestamp -replace '[: ]', '_'
         $LogFile = "$LogFolder\speedtest_${SafeHostname}_$SafeTimestamp.json"
-        
+
         $Payload = @{
             hostname = $Hostname
             usuario = $CurrentUser
@@ -167,18 +157,18 @@ function PruebaDeVelocidad {
             subida = $UploadSpeed
             timestamp = $Timestamp
         }
-        
+
         $PayloadJson = $Payload | ConvertTo-Json -Depth 5 -Compress
         Set-Content -Path $LogFile -Value $PayloadJson -Encoding UTF8
         Write-Host "📁 Resultado guardado en: $LogFile"
 
         Write-Host "Enviando al webhook de Teams..."
         Invoke-RestMethod -Uri $TeamsWebhookUrl -Method Post -Body $TeamsMessageBody -ContentType "application/json" -ErrorAction Stop
-        Write-Host "Tarjeta enviada correctamente."
+        Write-Host "✅ Tarjeta enviada correctamente."
 
         return $true
     } catch {
-        Write-Host "Error grave: $($_.Exception.Message)"
+        Write-Host "❌ Error grave: $($_.Exception.Message)"
         if ($_.Exception.Response) {
             $reader = [System.IO.StreamReader]::new($_.Exception.Response.GetResponseStream())
             $responseText = $reader.ReadToEnd()
@@ -191,4 +181,3 @@ function PruebaDeVelocidad {
 
 Add-WinGetPath
 PruebaDeVelocidad
-
