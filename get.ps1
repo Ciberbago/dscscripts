@@ -5,6 +5,7 @@ function Get-SpeedtestExecutable {
         Select-Object -First 1
 
     return $exe?.FullName
+    Write-Host "$exe?.FullName"
 }
 
 Get-SpeedtestExecutable
