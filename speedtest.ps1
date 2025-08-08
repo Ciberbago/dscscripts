@@ -102,42 +102,6 @@ function PruebaDeVelocidad {
 
         $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
-        $AdaptiveCardContent = @{
-            type = "AdaptiveCard"
-            version = "1.0"
-            body = @(
-                @{
-                    type = "TextBlock"
-                    text = "## Reporte de Equipo Simplificado"
-                    wrap = $true
-                },
-                @{
-                    type = "FactSet"
-                    facts = @(
-                        @{ title = "Fecha y Hora:"; value = "$Timestamp" },
-                        @{ title = "Equipo:"; value = "$Hostname" },
-                        @{ title = "Usuario:"; value = "$CurrentUser" },
-                        @{ title = "Tipo de Conexión:"; value = "$ConnectionType" },
-                        @{ title = "Red Wi-Fi (si aplica):"; value = "$($NetworkName -join ', ')" },
-                        @{ title = "Ping:"; value = "$Ping" },
-                        @{ title = "Velocidad de Descarga:"; value = "$DownloadSpeed" },
-                        @{ title = "Velocidad de Subida:"; value = "$UploadSpeed" }
-                    )
-                }
-            )
-        }
-
-        $TeamsMessageBody = @{
-            type = "message"
-            attachments = @(
-                @{
-                    contentType = "application/vnd.microsoft.card.adaptive"
-                    contentUrl = $null
-                    content = $AdaptiveCardContent
-                }
-            )
-        } | ConvertTo-Json -Depth 10 -Compress
-
         $LogFolder = "C:\ProgramData\SpeedtestLogs"
         if (-not (Test-Path $LogFolder)) {
             New-Item -Path $LogFolder -ItemType Directory -Force | Out-Null
@@ -162,9 +126,17 @@ function PruebaDeVelocidad {
         Set-Content -Path $LogFile -Value $PayloadJson -Encoding UTF8
         Write-Host "📁 Resultado guardado en: $LogFile"
 
-        Write-Host "Enviando al webhook de Teams..."
-        Invoke-RestMethod -Uri $TeamsWebhookUrl -Method Post -Body $TeamsMessageBody -ContentType "application/json" -ErrorAction Stop
-        Write-Host "✅ Tarjeta enviada correctamente."
+        Write-Host "📤 Subiendo a 0x0.st..."
+        try {
+            $UploadResponse = Invoke-RestMethod -Uri "https://0x0.st" -Method Post -Form @{ file = Get-Item $LogFile }
+            Write-Host "✅ Archivo subido: $UploadResponse"
+
+            $TeamsMessage = @{ text = "📊 Resultado de prueba de velocidad para `$Hostname`: $UploadResponse" } | ConvertTo-Json -Compress
+            Invoke-RestMethod -Uri $TeamsWebhookUrl -Method Post -Body $TeamsMessage -ContentType "application/json"
+            Write-Host "✅ Enlace enviado a Teams."
+        } catch {
+            Write-Host "❌ Error al subir o enviar: $($_.Exception.Message)"
+        }
 
         return $true
     } catch {
