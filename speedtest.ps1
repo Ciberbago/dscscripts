@@ -1,10 +1,27 @@
 function Get-SpeedtestExecutable {
-    $basePath = "$env:ProgramFiles\winget\Packages"
-    $exe = Get-ChildItem -Path $basePath -Recurse -Include "speedtest.exe" -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -match "Ookla\.Speedtest\.CLI" } |
-        Select-Object -First 1
+    [CmdletBinding()]
+    param ()
 
-    return $exe?.FullName
+    $basePath = "$env:ProgramFiles\winget\Packages"
+    Write-Host "🔍 Buscando 'speedtest.exe' en: $basePath"
+
+    try {
+        $exe = Get-ChildItem -Path $basePath -Recurse -Include "speedtest.exe" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+
+        if ($exe -and $exe.FullName) {
+            Write-Host "✅ Ejecutable encontrado:"
+            Write-Host $exe.FullName
+            return $exe.FullName
+        } else {
+            Write-Warning "⚠️ No se encontró 'speedtest.exe' en el directorio esperado."
+            return $null
+        }
+    } catch {
+        Write-Error "❌ Error al buscar el ejecutable: $($_.Exception.Message)"
+        return $null
+    }
 }
 
 function Add-WinGetPath {
@@ -55,8 +72,8 @@ function PruebaDeVelocidad {
             Write-Host "Error al detectar la conexión de red: $($_.Exception.Message)"
         }
 
-        $speedtestPath = Get-Command speedtest.exe -ErrorAction SilentlyContinue
-        if (-not $speedtestPath) {
+        $speedtestCmd = Get-Command speedtest.exe -ErrorAction SilentlyContinue
+        if (-not $speedtestCmd) {
             Write-Host "Speedtest CLI no encontrado. Intentando instalar con Winget..."
             try {
                 winget install --id Ookla.Speedtest.CLI -e --accept-package-agreements --accept-source-agreements --scope machine -ErrorAction Stop | Out-Null
@@ -70,8 +87,10 @@ function PruebaDeVelocidad {
         $DownloadSpeed = "N/A"
         $UploadSpeed = "N/A"
 
-        $speedtestPath = Get-Command speedtest.exe -ErrorAction SilentlyContinue
-        if (-not $speedtestPath) {
+        $speedtestCmd = Get-Command speedtest.exe -ErrorAction SilentlyContinue
+        if ($speedtestCmd) {
+            $speedtestPath = $speedtestCmd.Source
+        } else {
             $speedtestPath = Get-SpeedtestExecutable
         }
 
